@@ -97,10 +97,10 @@ Persistent()
 ; ═══════════════════════════════════════════
 
 OnWindowEvent(hWinEventHook, event, hwnd, idObject, idChild, idEventThread, dwmsEventTime) {
-    ; Only process window-level events (OBJID_WINDOW=0), ignore child UI elements
     if (idObject != 0)
         return
-    CheckVisibleWindows()
+    ; Debounce: reset timer on each event, only fire after 100ms of quiet
+    SetTimer(CheckVisibleWindows, -100)
 }
 
 CheckVisibleWindows() {
@@ -144,18 +144,15 @@ CheckVisibleWindows() {
 SetGreyscale(enable) {
     global GreyscaleActive
 
-    ; Read current state from registry
+    desiredState := enable ? 1 : 0
+
     try currentState := RegRead("HKCU\Software\Microsoft\ColorFiltering", "Active")
     catch
         currentState := 0
 
-    desiredState := enable ? 1 : 0
-
-    ; Only toggle if current state differs from desired
     if (currentState != desiredState) {
-        ; Win+Ctrl+C is the OS-native color filter toggle
-        Send("#^c")
-        Sleep(50)
+        RegWrite(desiredState, "REG_DWORD", "HKCU\Software\Microsoft\ColorFiltering", "Active")
+        Run('atbroker.exe /colorfiltershortcut /resettransferkeys',, "Hide")
     }
 
     GreyscaleActive := enable
@@ -319,8 +316,10 @@ ExitHandler(exitReason, exitCode) {
     if GreyscaleActive {
         try {
             currentState := RegRead("HKCU\Software\Microsoft\ColorFiltering", "Active")
-            if (currentState = 1)
-                Send("#^c")
+            if (currentState = 1) {
+                RegWrite(0, "REG_DWORD", "HKCU\Software\Microsoft\ColorFiltering", "Active")
+                Run('atbroker.exe /colorfiltershortcut /resettransferkeys',, "Hide")
+            }
         }
         GreyscaleActive := false
     }
