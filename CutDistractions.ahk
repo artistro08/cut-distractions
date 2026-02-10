@@ -5,6 +5,7 @@
 global AppList := []
 global DisableHotkey := "^!g"
 global DisableDuration := 3
+global AlwaysOn := 0
 global ScheduleEnabled := 0
 global ScheduleStart := "09:00"
 global ScheduleEnd := "17:00"
@@ -24,6 +25,7 @@ for item in StrSplit(appListRaw, ",")
 DisableHotkey := IniRead(settingsFile, "Hotkey", "DisableHotkey", "^!g")
 DisableDuration := Integer(IniRead(settingsFile, "Hotkey", "DisableDuration", "3"))
 
+AlwaysOn := Integer(IniRead(settingsFile, "General", "AlwaysOn", "0"))
 ScheduleEnabled := Integer(IniRead(settingsFile, "Schedule", "Enabled", "0"))
 ScheduleStart := IniRead(settingsFile, "Schedule", "StartTime", "09:00")
 ScheduleEnd := IniRead(settingsFile, "Schedule", "EndTime", "17:00")
@@ -95,6 +97,9 @@ Persistent()
 ; ═══════════════════════════════════════════
 
 OnWindowEvent(hWinEventHook, event, hwnd, idObject, idChild, idEventThread, dwmsEventTime) {
+    ; Only process window-level events (OBJID_WINDOW=0), ignore child UI elements
+    if (idObject != 0)
+        return
     CheckVisibleWindows()
 }
 
@@ -107,17 +112,21 @@ CheckVisibleWindows() {
     shouldGreyscale := false
 
     if IsWithinSchedule() {
-        ; Check all visible (non-minimized) windows against the app list
-        for appName in AppList {
-            try {
-                windows := WinGetList(appName)
-                for hwnd in windows {
-                    try {
-                        minMax := WinGetMinMax(hwnd)
-                        ; minMax: -1=minimized, 0=normal, 1=maximized
-                        if (minMax != -1) {
-                            shouldGreyscale := true
-                            break 2
+        if AlwaysOn {
+            shouldGreyscale := true
+        } else {
+            ; Check all visible (non-minimized) windows against the app list
+            for appName in AppList {
+                try {
+                    windows := WinGetList(appName)
+                    for hwnd in windows {
+                        try {
+                            minMax := WinGetMinMax(hwnd)
+                            ; minMax: -1=minimized, 0=normal, 1=maximized
+                            if (minMax != -1) {
+                                shouldGreyscale := true
+                                break 2
+                            }
                         }
                     }
                 }
@@ -228,7 +237,7 @@ TrayExit(*) {
 ; ─── Settings GUI ───
 ShowSettingsGui() {
     global settingsFile, AppList, DisableHotkey, DisableDuration
-    global ScheduleEnabled, ScheduleStart, ScheduleEnd
+    global ScheduleEnabled, ScheduleStart, ScheduleEnd, AlwaysOn
 
     ; Destroy existing GUI if open
     try {
@@ -239,8 +248,11 @@ ShowSettingsGui() {
     sg.MarginX := 15
     sg.MarginY := 10
 
+    ; Always On checkbox
+    sg.AddCheckBox("vAlwaysOn Section " (AlwaysOn ? "Checked" : ""), "Always On (greyscale stays active regardless of open apps)")
+
     ; Apps section
-    sg.AddText("Section", "Apps (comma-separated):")
+    sg.AddText("xs", "Apps (comma-separated):")
     appListStr := ""
     for i, app in AppList {
         appListStr .= (i > 1 ? "," : "") . app
@@ -288,6 +300,7 @@ SaveSettings(sg, *) {
     }
 
     ; Write to settings file
+    IniWrite(saved.AlwaysOn, settingsFile, "General", "AlwaysOn")
     IniWrite(Trim(saved.AppList), settingsFile, "Apps", "List")
     IniWrite(Trim(saved.DisableHotkey), settingsFile, "Hotkey", "DisableHotkey")
     IniWrite(saved.DisableDuration, settingsFile, "Hotkey", "DisableDuration")
