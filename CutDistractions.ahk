@@ -80,6 +80,12 @@ global WinEventHookMinimize := DllCall("SetWinEventHook"
     , "Ptr", 0, "Ptr", WinEventCallback
     , "UInt", 0, "UInt", 0, "UInt", 0x0000, "Ptr")
 
+; Hook EVENT_OBJECT_NAMECHANGE (0x800C) - window title changes
+global WinEventHookNameChange := DllCall("SetWinEventHook"
+    , "UInt", 0x800C, "UInt", 0x800C
+    , "Ptr", 0, "Ptr", WinEventCallback
+    , "UInt", 0, "UInt", 0, "UInt", 0x0000, "Ptr")
+
 ; Polling timer as safety net (every 2 seconds) for cases events miss
 SetTimer(CheckVisibleWindows, 2000)
 
@@ -310,7 +316,7 @@ SaveSettings(sg, *) {
 }
 
 ExitHandler(exitReason, exitCode) {
-    global WinEventHookFG, WinEventHookShowHide, WinEventHookMinimize, WinEventCallback, GreyscaleActive
+    global WinEventHookFG, WinEventHookShowHide, WinEventHookMinimize, WinEventHookNameChange, WinEventCallback, GreyscaleActive
 
     ; Restore color on exit
     if GreyscaleActive {
@@ -325,13 +331,14 @@ ExitHandler(exitReason, exitCode) {
     }
 
     ; Unhook window events
-    for hookVar in [WinEventHookFG, WinEventHookShowHide, WinEventHookMinimize] {
+    for hookVar in [WinEventHookFG, WinEventHookShowHide, WinEventHookMinimize, WinEventHookNameChange] {
         if hookVar
             DllCall("UnhookWinEvent", "Ptr", hookVar)
     }
     WinEventHookFG := 0
     WinEventHookShowHide := 0
     WinEventHookMinimize := 0
+    WinEventHookNameChange := 0
     if WinEventCallback {
         CallbackFree(WinEventCallback)
         WinEventCallback := 0
