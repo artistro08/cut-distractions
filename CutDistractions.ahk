@@ -792,9 +792,10 @@ ShowExitPasswordDialog() {
 }
 
 SaveSettings(sg, *) {
-    global settingsFile, ProcessList
+    global settingsFile, ProcessList, CD_DarkGuis, CD_SettingsGui
 
-    saved := sg.Submit()
+    ; Collect values WITHOUT hiding the GUI so it stays visible if validation fails
+    saved := sg.Submit(false)
 
     ; Validate time format
     if !RegExMatch(saved.ScheduleStart, "^\d{1,2}:\d{2}$") {
@@ -807,15 +808,20 @@ SaveSettings(sg, *) {
     }
 
     ; Write to settings file
-    IniWrite(saved.AlwaysOn, settingsFile, "General", "AlwaysOn")
-    IniWrite(saved.ExitPassword, settingsFile, "General", "ExitPassword")
-    IniWrite(Trim(saved.AppList), settingsFile, "Apps", "List")
-    IniWrite(Trim(saved.DisableHotkey), settingsFile, "Hotkey", "DisableHotkey")
-    IniWrite(saved.DisableDuration, settingsFile, "Hotkey", "DisableDuration")
-    IniWrite(saved.ScheduleEnabled, settingsFile, "Schedule", "Enabled")
-    IniWrite(saved.ScheduleStart, settingsFile, "Schedule", "StartTime")
-    IniWrite(saved.ScheduleEnd, settingsFile, "Schedule", "EndTime")
-    IniWrite(Trim(saved.ProcessList), settingsFile, "Processes", "List")
+    try {
+        IniWrite(saved.AlwaysOn, settingsFile, "General", "AlwaysOn")
+        IniWrite(saved.ExitPassword, settingsFile, "General", "ExitPassword")
+        IniWrite(Trim(saved.AppList), settingsFile, "Apps", "List")
+        IniWrite(Trim(saved.DisableHotkey), settingsFile, "Hotkey", "DisableHotkey")
+        IniWrite(saved.DisableDuration, settingsFile, "Hotkey", "DisableDuration")
+        IniWrite(saved.ScheduleEnabled, settingsFile, "Schedule", "Enabled")
+        IniWrite(saved.ScheduleStart, settingsFile, "Schedule", "StartTime")
+        IniWrite(saved.ScheduleEnd, settingsFile, "Schedule", "EndTime")
+        IniWrite(Trim(saved.ProcessList), settingsFile, "Processes", "List")
+    } catch as err {
+        MsgBox("Failed to save settings:`n" err.Message "`n`nFile: " settingsFile, "Save Error", 16)
+        return
+    }
 
     ; Reload to apply changes
     CD_DarkGuis.Delete(sg.Hwnd)
