@@ -49,6 +49,8 @@ List=chrome.exe,brave.exe,arc.exe,zen.exe,firefox.exe
 DisableHotkey=^!g
 ; Minutes before greyscale re-enables after hotkey press
 DisableDuration=3
+; AHK v2 hotkey format to toggle schedule on/off
+ScheduleHotkey=^#!s
 
 [Schedule]
 ; Enable time-based scheduling (1=on, 0=off)
@@ -79,6 +81,8 @@ Leave `List` empty (or remove the key) to check all windows system-wide, which i
 ### Hotkey
 
 The default hotkey `Ctrl+Alt+G` temporarily pauses greyscale for the configured duration. Press it again while paused to resume monitoring immediately.
+
+`Ctrl+Win+Alt+S` toggles the schedule on or off. When toggled, the change takes effect immediately and is saved to `settings.ini`. The schedule can also be toggled from the tray menu.
 
 ### Schedule
 

@@ -6,7 +6,7 @@ global AppList := []
 global ProcessList := []
 global DisableHotkey := "^!g"
 global DisableDuration := 3
-global ScheduleHotkey := "+!s"
+global ScheduleHotkey := "^#!s"
 global AlwaysOn := 0
 global ExitPassword := ""
 global ScheduleEnabled := 0
@@ -15,6 +15,7 @@ global ScheduleEnd := "17:00"
 global GreyscaleActive := false
 global TempDisabled := false
 global CurrentStatusText := "Status: Monitoring"
+global CurrentScheduleText := "Schedule: OFF"
 
 ; ─── Dark Mode Globals ───
 global CD_IsDark := false
@@ -43,7 +44,7 @@ for item in StrSplit(processListRaw, ",")
 
 DisableHotkey := IniRead(settingsFile, "Hotkey", "DisableHotkey", "^!g")
 DisableDuration := Integer(IniRead(settingsFile, "Hotkey", "DisableDuration", "3"))
-ScheduleHotkey := IniRead(settingsFile, "Hotkey", "ScheduleHotkey", "+!s")
+ScheduleHotkey := IniRead(settingsFile, "Hotkey", "ScheduleHotkey", "^#!s")
 
 AlwaysOn := Integer(IniRead(settingsFile, "General", "AlwaysOn", "0"))
 ExitPassword := IniRead(settingsFile, "General", "ExitPassword", "")
@@ -98,6 +99,9 @@ A_TrayMenu.Disable("CutDistractions")
 A_TrayMenu.Add()
 A_TrayMenu.Add("Status: Monitoring", (*) => "")
 A_TrayMenu.Disable("Status: Monitoring")
+scheduleLabel := "Schedule: " (ScheduleEnabled ? "ON" : "OFF")
+CurrentScheduleText := scheduleLabel
+A_TrayMenu.Add(scheduleLabel, OnToggleSchedule)
 A_TrayMenu.Add()
 A_TrayMenu.Add("Settings", OnOpenSettings)
 A_TrayMenu.Default := "Settings"
@@ -285,7 +289,7 @@ OnToggleSchedule(*) {
 }
 
 UpdateTrayStatus() {
-    global TempDisabled, GreyscaleActive, CurrentStatusText
+    global TempDisabled, GreyscaleActive, CurrentStatusText, CurrentScheduleText, ScheduleEnabled
 
     if TempDisabled
         status := "Status: Paused"
@@ -297,6 +301,12 @@ UpdateTrayStatus() {
     if status != CurrentStatusText {
         try A_TrayMenu.Rename(CurrentStatusText, status)
         CurrentStatusText := status
+    }
+
+    scheduleStatus := "Schedule: " (ScheduleEnabled ? "ON" : "OFF")
+    if scheduleStatus != CurrentScheduleText {
+        try A_TrayMenu.Rename(CurrentScheduleText, scheduleStatus)
+        CurrentScheduleText := scheduleStatus
     }
 
     A_IconTip := "CutDistractions - " status
@@ -571,11 +581,8 @@ GUI_UpDownSubclass(hwnd, uMsg, wParam, lParam, uIdSubclass, dwRefData) {
         DllCall("SelectObject", "ptr", hdc, "ptr", oldPen, "ptr")
         DllCall("SelectObject", "ptr", hdc, "ptr", oldBrush, "ptr")
         DllCall("DeleteObject", "ptr", hPen)
-        ; Arrows using Marlett font ("5"=up, "6"=down)
-        hFont := DllCall("CreateFontW", "int", 11, "int", 0, "int", 0, "int", 0
-            , "int", 400, "uint", 0, "uint", 0, "uint", 0
-            , "uint", 0, "uint", 0, "uint", 0, "uint", 0, "uint", 0
-            , "wstr", "Marlett", "ptr")
+        ; Arrows using unicode triangles with the default GUI font
+        hFont := DllCall("GetStockObject", "int", 17, "ptr") ; DEFAULT_GUI_FONT
         oldFont := DllCall("SelectObject", "ptr", hdc, "ptr", hFont, "ptr")
         DllCall("SetBkMode", "ptr", hdc, "int", 1)
         DllCall("SetTextColor", "ptr", hdc, "uint", 0xC0C0C0)
@@ -584,15 +591,14 @@ GUI_UpDownSubclass(hwnd, uMsg, wParam, lParam, uIdSubclass, dwRefData) {
         NumPut("int", 0, upRc, 4)
         NumPut("int", w, upRc, 8)
         NumPut("int", midH, upRc, 12)
-        DllCall("DrawTextW", "ptr", hdc, "wstr", "5", "int", 1, "ptr", upRc, "uint", 0x25)
+        DllCall("DrawTextW", "ptr", hdc, "wstr", "▲", "int", -1, "ptr", upRc, "uint", 0x25)
         dnRc := Buffer(16)
         NumPut("int", 0, dnRc, 0)
         NumPut("int", midH, dnRc, 4)
         NumPut("int", w, dnRc, 8)
         NumPut("int", h, dnRc, 12)
-        DllCall("DrawTextW", "ptr", hdc, "wstr", "6", "int", 1, "ptr", dnRc, "uint", 0x25)
+        DllCall("DrawTextW", "ptr", hdc, "wstr", "▼", "int", -1, "ptr", dnRc, "uint", 0x25)
         DllCall("SelectObject", "ptr", hdc, "ptr", oldFont, "ptr")
-        DllCall("DeleteObject", "ptr", hFont)
         DllCall("EndPaint", "ptr", hwnd, "ptr", ps)
         return 0
     }
