@@ -117,9 +117,12 @@ The `build/` directory contains scripts to compile CutDistractions into a signed
 ### Prerequisites
 
 - [AutoHotkey v2](https://www.autohotkey.com/) (includes the Ahk2Exe compiler)
+- [PowerShell 7](https://aka.ms/powershell) (`pwsh`) — required by `BUILD.bat` and all build scripts; Windows PowerShell 5.x will not work
 - Windows SDK (for `mt.exe`) or [Resource Hacker](http://www.angusj.com/resourcehacker/) (for manifest embedding)
 
 ### Build Steps
+
+> **Requires PowerShell 7.** Install it from [aka.ms/powershell](https://aka.ms/powershell) if `pwsh` is not already on your PATH.
 
 Run `build\BUILD.bat` as administrator. This executes three steps:
 
@@ -127,7 +130,7 @@ Run `build\BUILD.bat` as administrator. This executes three steps:
 2. **Compile and Sign** (`2-CompileAndSign.ps1`) - Compiles the AHK script to an exe, embeds the UIAccess manifest, and signs it
 3. **Deploy** (`3-Deploy.ps1`) - Copies the signed exe to `C:\Program Files\CutDistractions\` and settings to the user config directory
 
-You can also run each step individually from an elevated PowerShell:
+You can also run each step individually from an elevated **PowerShell 7** (`pwsh`) session:
 
 ```powershell
 cd build
