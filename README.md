@@ -118,7 +118,7 @@ The `build/` directory contains scripts to compile CutDistractions into a signed
 
 - [AutoHotkey v2](https://www.autohotkey.com/) (includes the Ahk2Exe compiler)
 - [PowerShell 7](https://aka.ms/powershell) (`pwsh`) — required by `BUILD.bat` and all build scripts; Windows PowerShell 5.x will not work
-- Windows SDK (for `mt.exe`) or [Resource Hacker](http://www.angusj.com/resourcehacker/) (for manifest embedding)
+- [Windows SDK](https://developer.microsoft.com/en-us/windows/downloads/windows-sdk/) (for `mt.exe`) or [Resource Hacker](http://www.angusj.com/resourcehacker/) (for manifest embedding)
 
 ### Build Steps
 
