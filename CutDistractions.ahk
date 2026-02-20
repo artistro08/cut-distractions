@@ -3,6 +3,7 @@
 
 ; ─── Global State ───
 global AppList := []
+global ProcessList := []
 global DisableHotkey := "^!g"
 global DisableDuration := 3
 global AlwaysOn := 0
@@ -32,6 +33,10 @@ settingsFile := FileExist(userSettingsFile) ? userSettingsFile : A_ScriptDir "\s
 appListRaw := IniRead(settingsFile, "Apps", "List", "YouTube,Twitter,Reddit,TikTok,Instagram")
 for item in StrSplit(appListRaw, ",")
     AppList.Push(Trim(item))
+
+processListRaw := IniRead(settingsFile, "Processes", "List", "chrome.exe,brave.exe,arc.exe,zen.exe,firefox.exe")
+for item in StrSplit(processListRaw, ",")
+    ProcessList.Push(Trim(item))
 
 DisableHotkey := IniRead(settingsFile, "Hotkey", "DisableHotkey", "^!g")
 DisableDuration := Integer(IniRead(settingsFile, "Hotkey", "DisableDuration", "3"))
@@ -143,7 +148,7 @@ OnWindowEvent(hWinEventHook, event, hwnd, idObject, idChild, idEventThread, dwms
 }
 
 CheckVisibleWindows() {
-    global TempDisabled, GreyscaleActive
+    global TempDisabled, GreyscaleActive, ProcessList
 
     if TempDisabled
         return
@@ -153,16 +158,34 @@ CheckVisibleWindows() {
     if IsWithinSchedule() {
         if AlwaysOn {
             shouldGreyscale := true
-        } else {
-            ; Check all visible (non-minimized) windows against the app list
+        } else if (ProcessList.Length > 0) {
+            ; Process-scoped: only check windows whose exe is in ProcessList
             for appName in AppList {
                 try {
                     windows := WinGetList(appName)
                     for hwnd in windows {
                         try {
-                            minMax := WinGetMinMax(hwnd)
-                            ; minMax: -1=minimized, 0=normal, 1=maximized
-                            if (minMax != -1) {
+                            if (WinGetMinMax(hwnd) = -1)
+                                continue
+                            procName := WinGetProcessName(hwnd)
+                            for procExe in ProcessList {
+                                if (procName = procExe) {
+                                    shouldGreyscale := true
+                                    break 3
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            ; No process list — original system-wide title search
+            for appName in AppList {
+                try {
+                    windows := WinGetList(appName)
+                    for hwnd in windows {
+                        try {
+                            if (WinGetMinMax(hwnd) != -1) {
                                 shouldGreyscale := true
                                 break 2
                             }
@@ -627,7 +650,7 @@ CD_DarkButton(guiObj, opts, label) {
 ShowSettingsGui() {
     global settingsFile, AppList, DisableHotkey, DisableDuration
     global ScheduleEnabled, ScheduleStart, ScheduleEnd, AlwaysOn
-    global CD_IsDark, CD_SettingsGui
+    global CD_IsDark, CD_SettingsGui, ProcessList
 
     ; Destroy existing GUI if open
     try {
@@ -656,6 +679,15 @@ ShowSettingsGui() {
         appListStr .= (i > 1 ? "," : "") . app
     }
     CD_DarkEdit(sg, "vAppList w350 r3 -VScroll", appListStr)
+
+    ; Active Processes section
+    CD_DarkGroupBox(sg, "w350 h65 Section xs", "Active Processes")
+    sg.AddText("xp+10 yp+22", "Only check these processes (comma-separated, empty = all):")
+    processListStr := ""
+    for i, proc in ProcessList {
+        processListStr .= (i > 1 ? "," : "") . proc
+    }
+    CD_DarkEdit(sg, "vProcessList w310 xs+10 y+5", processListStr)
 
     ; Hotkey section
     CD_DarkGroupBox(sg, "w350 h80 Section xs", "Hotkey")
@@ -687,7 +719,7 @@ ShowSettingsGui() {
 }
 
 SaveSettings(sg, *) {
-    global settingsFile
+    global settingsFile, ProcessList
 
     saved := sg.Submit()
 
@@ -709,6 +741,7 @@ SaveSettings(sg, *) {
     IniWrite(saved.ScheduleEnabled, settingsFile, "Schedule", "Enabled")
     IniWrite(saved.ScheduleStart, settingsFile, "Schedule", "StartTime")
     IniWrite(saved.ScheduleEnd, settingsFile, "Schedule", "EndTime")
+    IniWrite(Trim(saved.ProcessList), settingsFile, "Processes", "List")
 
     ; Reload to apply changes
     CD_SettingsGui := ""
@@ -717,13 +750,14 @@ SaveSettings(sg, *) {
 }
 
 ResetRegistry(*) {
+    global CD_SettingsGui
     try {
         RegDeleteKey("HKCU\Software\Microsoft\ColorFiltering")
     }
     RegWrite(0, "REG_DWORD", "HKCU\Software\Microsoft\ColorFiltering", "FilterType")
     RegWrite(1, "REG_DWORD", "HKCU\Software\Microsoft\ColorFiltering", "HotkeyEnabled")
     RegWrite(0, "REG_DWORD", "HKCU\Software\Microsoft\ColorFiltering", "Active")
-    MsgBox("Registry keys reset successfully.", "CutDistractions", 64)
+    MsgBox("Registry keys reset successfully.", "CutDistractions", "64 Owner" . CD_SettingsGui.Hwnd)
 }
 
 ExitHandler(exitReason, exitCode) {
