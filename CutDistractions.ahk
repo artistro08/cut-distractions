@@ -273,7 +273,7 @@ TrayExit(*) {
 ; ─── Dark Mode Subclasses & Helpers ───
 
 CD_WM_CTLCOLOREDIT(wParam, lParam, msg, hwnd) {
-    if (!CD_IsDark || CD_SettingsGui = "" || hwnd != CD_SettingsGui.Hwnd)
+    if (!CD_IsDark || !IsObject(CD_SettingsGui) || hwnd != CD_SettingsGui.Hwnd)
         return
     DllCall("SetTextColor", "ptr", wParam, "uint", 0xE0E0E0)
     DllCall("SetBkColor", "ptr", wParam, "uint", 0x2b2b2b)
@@ -281,7 +281,7 @@ CD_WM_CTLCOLOREDIT(wParam, lParam, msg, hwnd) {
 }
 
 CD_WM_CTLCOLORSTATIC(wParam, lParam, msg, hwnd) {
-    if (!CD_IsDark || CD_SettingsGui = "" || hwnd != CD_SettingsGui.Hwnd)
+    if (!CD_IsDark || !IsObject(CD_SettingsGui) || hwnd != CD_SettingsGui.Hwnd)
         return
     DllCall("SetTextColor", "ptr", wParam, "uint", 0xE0E0E0)
     DllCall("SetBkMode", "ptr", wParam, "int", 1) ; TRANSPARENT
@@ -711,6 +711,8 @@ SaveSettings(sg, *) {
     IniWrite(saved.ScheduleEnd, settingsFile, "Schedule", "EndTime")
 
     ; Reload to apply changes
+    CD_SettingsGui := ""
+    sg.Destroy()
     Reload()
 }
 
