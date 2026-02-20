@@ -7,6 +7,7 @@ global ProcessList := []
 global DisableHotkey := "^!g"
 global DisableDuration := 3
 global AlwaysOn := 0
+global ExitPassword := ""
 global ScheduleEnabled := 0
 global ScheduleStart := "09:00"
 global ScheduleEnd := "17:00"
@@ -17,6 +18,7 @@ global CurrentStatusText := "Status: Monitoring"
 ; ─── Dark Mode Globals ───
 global CD_IsDark := false
 global CD_SettingsGui := ""
+global CD_DarkGuis := Map()  ; tracks hwnds of all active dark-mode GUIs
 global GUI_DarkBrush := DllCall("CreateSolidBrush", "uint", 0x202020, "ptr")
 global GUI_CtrlBrush := DllCall("CreateSolidBrush", "uint", 0x2b2b2b, "ptr")
 global GUI_BorderBrush := DllCall("CreateSolidBrush", "uint", 0x2C2C2C, "ptr")
@@ -42,6 +44,7 @@ DisableHotkey := IniRead(settingsFile, "Hotkey", "DisableHotkey", "^!g")
 DisableDuration := Integer(IniRead(settingsFile, "Hotkey", "DisableDuration", "3"))
 
 AlwaysOn := Integer(IniRead(settingsFile, "General", "AlwaysOn", "0"))
+ExitPassword := IniRead(settingsFile, "General", "ExitPassword", "")
 ScheduleEnabled := Integer(IniRead(settingsFile, "Schedule", "Enabled", "0"))
 ScheduleStart := IniRead(settingsFile, "Schedule", "StartTime", "09:00")
 ScheduleEnd := IniRead(settingsFile, "Schedule", "EndTime", "17:00")
@@ -290,13 +293,18 @@ OnOpenSettings(*) {
 }
 
 TrayExit(*) {
+    global ExitPassword
+    if (ExitPassword != "") {
+        ShowExitPasswordDialog()
+        return
+    }
     ExitApp()
 }
 
 ; ─── Dark Mode Subclasses & Helpers ───
 
 CD_WM_CTLCOLOREDIT(wParam, lParam, msg, hwnd) {
-    if (!CD_IsDark || !IsObject(CD_SettingsGui) || hwnd != CD_SettingsGui.Hwnd)
+    if (!CD_IsDark || !CD_DarkGuis.Has(hwnd))
         return
     DllCall("SetTextColor", "ptr", wParam, "uint", 0xE0E0E0)
     DllCall("SetBkColor", "ptr", wParam, "uint", 0x2b2b2b)
@@ -304,7 +312,7 @@ CD_WM_CTLCOLOREDIT(wParam, lParam, msg, hwnd) {
 }
 
 CD_WM_CTLCOLORSTATIC(wParam, lParam, msg, hwnd) {
-    if (!CD_IsDark || !IsObject(CD_SettingsGui) || hwnd != CD_SettingsGui.Hwnd)
+    if (!CD_IsDark || !CD_DarkGuis.Has(hwnd))
         return
     DllCall("SetTextColor", "ptr", wParam, "uint", 0xE0E0E0)
     DllCall("SetBkMode", "ptr", wParam, "int", 1) ; TRANSPARENT
@@ -582,6 +590,17 @@ GUI_UpDownSubclass(hwnd, uMsg, wParam, lParam, uIdSubclass, dwRefData) {
     return DllCall("comctl32\DefSubclassProc", "ptr", hwnd, "uint", uMsg, "ptr", wParam, "ptr", lParam, "ptr")
 }
 
+; Exit password edit subclass: blocks all paste operations (WM_PASTE)
+global ExitPwd_SubclassProc := CallbackCreate(ExitPwd_EditSubclass, , 6)
+
+ExitPwd_EditSubclass(hwnd, uMsg, wParam, lParam, uIdSubclass, dwRefData) {
+    if (uMsg = 0x0302) ; WM_PASTE - block clipboard paste
+        return 0
+    if (uMsg = 0x0002) ; WM_DESTROY
+        DllCall("comctl32\RemoveWindowSubclass", "ptr", hwnd, "ptr", ExitPwd_SubclassProc, "uint", 10)
+    return DllCall("comctl32\DefSubclassProc", "ptr", hwnd, "uint", uMsg, "ptr", wParam, "ptr", lParam, "ptr")
+}
+
 GUI_AllowDarkMode(hwnd) {
     if (GUI_pAllowDarkModeForWindow)
         DllCall(GUI_pAllowDarkModeForWindow, "ptr", hwnd, "int", true)
@@ -650,7 +669,7 @@ CD_DarkButton(guiObj, opts, label) {
 ShowSettingsGui() {
     global settingsFile, AppList, DisableHotkey, DisableDuration
     global ScheduleEnabled, ScheduleStart, ScheduleEnd, AlwaysOn
-    global CD_IsDark, CD_SettingsGui, ProcessList
+    global CD_IsDark, CD_SettingsGui, ProcessList, ExitPassword
 
     ; Destroy existing GUI if open
     try {
@@ -668,9 +687,14 @@ ShowSettingsGui() {
     }
 
     CD_SettingsGui := sg
+    CD_DarkGuis[sg.Hwnd] := true
 
     ; Always On checkbox
     CD_DarkCheckbox(sg, "vAlwaysOn Section " (AlwaysOn ? "Checked" : ""), "Always On (greyscale stays active regardless of open apps)")
+
+    ; Exit password
+    sg.AddText("xs y+8", "Exit Password (leave blank for none):")
+    CD_DarkEdit(sg, "vExitPassword w200", ExitPassword)
 
     ; Apps section
     sg.AddText("xs", "Apps (comma-separated):")
@@ -713,9 +737,53 @@ ShowSettingsGui() {
     resetBtn := CD_DarkButton(sg, "x+10 w130", "Reset Registry")
     resetBtn.OnEvent("Click", ResetRegistry)
 
-    sg.OnEvent("Escape", (*) => sg.Destroy())
-    sg.OnEvent("Close", (*) => sg.Destroy())
+    sg.OnEvent("Escape", (*) => (CD_DarkGuis.Delete(sg.Hwnd), sg.Destroy()))
+    sg.OnEvent("Close",  (*) => (CD_DarkGuis.Delete(sg.Hwnd), sg.Destroy()))
     sg.Show()
+}
+
+ShowExitPasswordDialog() {
+    global ExitPassword, ExitPwd_SubclassProc, CD_IsDark, CD_DarkGuis
+
+    dlg := Gui("+AlwaysOnTop", "Exit CutDistractions")
+    dlg.MarginX := 15
+    dlg.MarginY := 12
+
+    if CD_IsDark {
+        dlg.BackColor := "0x202020"
+        dlg.SetFont("s9 cE0E0E0", "Segoe UI")
+        GUI_ApplyDarkTitle(dlg)
+        CD_DarkGuis[dlg.Hwnd] := true
+    }
+
+    dlg.AddText("w260", "Enter password to exit CutDistractions:")
+    pwdEdit := CD_DarkEdit(dlg, "vPassword w260")
+
+    ; Block paste — subclass ID 10, distinct from dark-mode subclass ID 1
+    DllCall("comctl32\SetWindowSubclass", "ptr", pwdEdit.Hwnd, "ptr", ExitPwd_SubclassProc, "uint", 10, "ptr", 0)
+
+    okBtn  := CD_DarkButton(dlg, "w120 Default", "Exit")
+    cancelBtn := CD_DarkButton(dlg, "x+10 w120", "Cancel")
+
+    okBtn.OnEvent("Click", CheckAndExit)
+    cancelBtn.OnEvent("Click", (*) => (CD_DarkGuis.Delete(dlg.Hwnd), dlg.Destroy()))
+    dlg.OnEvent("Escape", (*) => (CD_DarkGuis.Delete(dlg.Hwnd), dlg.Destroy()))
+    dlg.OnEvent("Close",  (*) => (CD_DarkGuis.Delete(dlg.Hwnd), dlg.Destroy()))
+
+    CheckAndExit(*) {
+        saved := dlg.Submit(false)
+        if (saved.Password = ExitPassword) {
+            CD_DarkGuis.Delete(dlg.Hwnd)
+            dlg.Destroy()
+            ExitApp()
+        } else {
+            MsgBox("Incorrect password.", "Exit CutDistractions", "48 Owner" . dlg.Hwnd)
+            pwdEdit.Value := ""
+            pwdEdit.Focus()
+        }
+    }
+
+    dlg.Show("AutoSize")
 }
 
 SaveSettings(sg, *) {
@@ -735,6 +803,7 @@ SaveSettings(sg, *) {
 
     ; Write to settings file
     IniWrite(saved.AlwaysOn, settingsFile, "General", "AlwaysOn")
+    IniWrite(saved.ExitPassword, settingsFile, "General", "ExitPassword")
     IniWrite(Trim(saved.AppList), settingsFile, "Apps", "List")
     IniWrite(Trim(saved.DisableHotkey), settingsFile, "Hotkey", "DisableHotkey")
     IniWrite(saved.DisableDuration, settingsFile, "Hotkey", "DisableDuration")
@@ -744,6 +813,7 @@ SaveSettings(sg, *) {
     IniWrite(Trim(saved.ProcessList), settingsFile, "Processes", "List")
 
     ; Reload to apply changes
+    CD_DarkGuis.Delete(sg.Hwnd)
     CD_SettingsGui := ""
     sg.Destroy()
     Reload()

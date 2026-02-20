@@ -31,6 +31,8 @@ Settings are loaded from `settings.ini`. When deployed as an executable, it chec
 [General]
 ; Keep greyscale always on (1=on, 0=off), still respects schedule
 AlwaysOn=0
+; Password required to exit (leave empty for no password)
+ExitPassword=
 
 [Apps]
 ; Comma-separated window title substrings that trigger greyscale
@@ -61,6 +63,8 @@ EndTime=4:00
 ### General
 
 `AlwaysOn=1` keeps greyscale active at all times (while within the schedule window), regardless of which apps are open. Useful if you want to enforce greyscale during a focus session without relying on app detection.
+
+`ExitPassword` requires a password to be entered before the app can be closed from the tray menu. Leave it empty to allow exiting freely. The password can also be set or changed in the Settings GUI. Note that the app can still be killed via Task Manager regardless of this setting.
 
 ### App List
 
