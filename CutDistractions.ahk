@@ -6,6 +6,7 @@ global AppList := []
 global ProcessList := []
 global DisableHotkey := "^!g"
 global DisableDuration := 3
+global ScheduleHotkey := "+!s"
 global AlwaysOn := 0
 global ExitPassword := ""
 global ScheduleEnabled := 0
@@ -42,6 +43,7 @@ for item in StrSplit(processListRaw, ",")
 
 DisableHotkey := IniRead(settingsFile, "Hotkey", "DisableHotkey", "^!g")
 DisableDuration := Integer(IniRead(settingsFile, "Hotkey", "DisableDuration", "3"))
+ScheduleHotkey := IniRead(settingsFile, "Hotkey", "ScheduleHotkey", "+!s")
 
 AlwaysOn := Integer(IniRead(settingsFile, "General", "AlwaysOn", "0"))
 ExitPassword := IniRead(settingsFile, "General", "ExitPassword", "")
@@ -80,8 +82,9 @@ try {
     RegWrite(1, "REG_DWORD", "HKCU\Software\Microsoft\ColorFiltering", "HotkeyEnabled")
 }
 
-; ─── Register Hotkey ───
+; ─── Register Hotkeys ───
 Hotkey(DisableHotkey, OnDisableHotkey)
+Hotkey(ScheduleHotkey, OnToggleSchedule)
 
 ; ─── Tray Icon ───
 iconFile := A_ScriptDir "\CutDistractions.ico"
@@ -269,6 +272,14 @@ OnDisableHotkey(*) {
 OnReEnable() {
     global TempDisabled
     TempDisabled := false
+    UpdateTrayStatus()
+    CheckVisibleWindows()
+}
+
+OnToggleSchedule(*) {
+    global ScheduleEnabled, settingsFile
+    ScheduleEnabled := ScheduleEnabled ? 0 : 1
+    IniWrite(ScheduleEnabled, settingsFile, "Schedule", "Enabled")
     UpdateTrayStatus()
     CheckVisibleWindows()
 }
@@ -670,7 +681,7 @@ CD_DarkButton(guiObj, opts, label) {
 
 ; ─── Settings GUI ───
 ShowSettingsGui() {
-    global settingsFile, AppList, DisableHotkey, DisableDuration
+    global settingsFile, AppList, DisableHotkey, DisableDuration, ScheduleHotkey
     global ScheduleEnabled, ScheduleStart, ScheduleEnd, AlwaysOn
     global CD_IsDark, CD_SettingsGui, ProcessList, ExitPassword
 
@@ -717,12 +728,14 @@ ShowSettingsGui() {
     CD_DarkEdit(sg, "vProcessList w310 xs+10 y+5", processListStr)
 
     ; Hotkey section
-    CD_DarkGroupBox(sg, "w350 h80 Section xs", "Hotkey")
+    CD_DarkGroupBox(sg, "w350 h110 Section xs", "Hotkey")
     sg.AddText("xp+10 yp+25", "Disable Hotkey:")
     CD_DarkEdit(sg, "vDisableHotkey w150 x+10 yp-3", DisableHotkey)
     sg.AddText("xs+10 y+10", "Duration (minutes):")
     CD_DarkEdit(sg, "vDisableDuration w60 x+10 yp-3 Number", DisableDuration)
     CD_DarkUpDown(sg, "Range1-60", DisableDuration)
+    sg.AddText("xs+10 y+10", "Schedule Toggle Hotkey:")
+    CD_DarkEdit(sg, "vScheduleHotkey w150 x+10 yp-3", ScheduleHotkey)
 
     ; Schedule section
     CD_DarkGroupBox(sg, "w350 h110 Section xs", "Schedule")
@@ -814,6 +827,7 @@ SaveSettings(sg, *) {
         IniWrite(Trim(saved.AppList), settingsFile, "Apps", "List")
         IniWrite(Trim(saved.DisableHotkey), settingsFile, "Hotkey", "DisableHotkey")
         IniWrite(saved.DisableDuration, settingsFile, "Hotkey", "DisableDuration")
+        IniWrite(Trim(saved.ScheduleHotkey), settingsFile, "Hotkey", "ScheduleHotkey")
         IniWrite(saved.ScheduleEnabled, settingsFile, "Schedule", "Enabled")
         IniWrite(saved.ScheduleStart, settingsFile, "Schedule", "StartTime")
         IniWrite(saved.ScheduleEnd, settingsFile, "Schedule", "EndTime")
