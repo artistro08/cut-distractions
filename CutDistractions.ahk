@@ -71,6 +71,9 @@ OnMessage(0x0133, CD_WM_CTLCOLOREDIT)    ; WM_CTLCOLOREDIT
 OnMessage(0x0134, CD_WM_CTLCOLOREDIT)    ; WM_CTLCOLORLISTBOX
 OnMessage(0x0138, CD_WM_CTLCOLORSTATIC)  ; WM_CTLCOLORSTATIC
 
+; ─── Clear watchdog UserExited flag (we are running normally) ───
+try RegWrite(0, "REG_DWORD", "HKCU\Software\CutDistractions", "UserExited")
+
 ; ─── Ensure Color Filter is set to Greyscale (FilterType=0) and hotkey is enabled ───
 try {
     RegWrite(0, "REG_DWORD", "HKCU\Software\Microsoft\ColorFiltering", "FilterType")
@@ -773,6 +776,8 @@ ShowExitPasswordDialog() {
     CheckAndExit(*) {
         saved := dlg.Submit(false)
         if (saved.Password = ExitPassword) {
+            ; Tell the watchdog this was an intentional exit — do not restart
+            try RegWrite(1, "REG_DWORD", "HKCU\Software\CutDistractions", "UserExited")
             CD_DarkGuis.Delete(dlg.Hwnd)
             dlg.Destroy()
             ExitApp()

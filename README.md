@@ -96,6 +96,20 @@ The **Reset Registry** button restores the Windows color filter registry keys to
 - **Settings** - Opens the settings GUI (also the default double-click action)
 - **Exit** - Closes the app and restores color if greyscale is active
 
+## Watchdog
+
+When deployed, a **watchdog** runs as a Windows Scheduled Task in the background. It checks every 5 seconds whether `CutDistractions.exe` is running and restarts it automatically if it was killed (e.g. via Task Manager or a crash).
+
+The watchdog respects an intentional exit: when you close the app via the password prompt, the app writes `HKCU\Software\CutDistractions\UserExited = 1` before exiting. The watchdog reads this flag and leaves the app closed. On the next normal startup the flag is cleared automatically.
+
+The scheduled task is registered during deployment (`3-Deploy.ps1`) and starts immediately. It is configured to run at every logon and to auto-restart if the watchdog script itself is terminated.
+
+To remove the watchdog entirely:
+
+```powershell
+Unregister-ScheduledTask -TaskName "CutDistractionsWatchdog" -Confirm:$false
+```
+
 ## Building as a Signed Executable
 
 The `build/` directory contains scripts to compile CutDistractions into a signed `.exe` with UIAccess support, allowing it to work with elevated windows.
@@ -139,11 +153,12 @@ CutDistractions/
   CutDistractions.ico     # Application icon
   settings.ini            # Configuration file
   build/
-    BUILD.bat             # One-click build launcher (run as admin)
-    BUILD-ALL.ps1         # Master build script
+    BUILD.bat                      # One-click build launcher (run as admin)
+    BUILD-ALL.ps1                  # Master build script
     1-CreateCertificate.ps1
     2-CompileAndSign.ps1
-    3-Deploy.ps1
+    3-Deploy.ps1                   # Also registers the watchdog scheduled task
+    CutDistractionsWatchdog.ps1    # Watchdog loop (copied to Program Files on deploy)
     CutDistractions.manifest
   certificates/           # Generated certificates (gitignored)
 ```

@@ -20,14 +20,16 @@ if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 # Paths
 $scriptRoot = $PSScriptRoot
 $projectRoot = Split-Path $scriptRoot -Parent
-$sourceExe = Join-Path $scriptRoot "CutDistractions.exe"
-$sourceIni = Join-Path $projectRoot "settings.ini"
-$sourceIco = Join-Path $projectRoot "CutDistractions.ico"
-$targetDir = "C:\Program Files\CutDistractions"
-$targetExe = Join-Path $targetDir "CutDistractions.exe"
-$userConfigDir = Join-Path $env:USERPROFILE ".config\cut-distractions"
-$targetIni = Join-Path $userConfigDir "settings.ini"
-$targetIco = Join-Path $targetDir "CutDistractions.ico"
+$sourceExe       = Join-Path $scriptRoot "CutDistractions.exe"
+$sourceIni       = Join-Path $projectRoot "settings.ini"
+$sourceIco       = Join-Path $projectRoot "CutDistractions.ico"
+$sourceWatchdog  = Join-Path $scriptRoot "CutDistractionsWatchdog.ps1"
+$targetDir       = "C:\Program Files\CutDistractions"
+$targetExe       = Join-Path $targetDir "CutDistractions.exe"
+$targetWatchdog  = Join-Path $targetDir "CutDistractionsWatchdog.ps1"
+$userConfigDir   = Join-Path $env:USERPROFILE ".config\cut-distractions"
+$targetIni       = Join-Path $userConfigDir "settings.ini"
+$targetIco       = Join-Path $targetDir "CutDistractions.ico"
 
 # Check if source executable exists
 if (-not (Test-Path $sourceExe))
@@ -128,6 +130,14 @@ try
         Write-Host "  ✓ Icon deployed" -ForegroundColor Green
     }
 
+    # Copy watchdog script
+    if (Test-Path $sourceWatchdog)
+    {
+        Write-Host "  Copying CutDistractionsWatchdog.ps1..." -ForegroundColor Gray
+        Copy-Item -Path $sourceWatchdog -Destination $targetWatchdog -Force
+        Write-Host "  ✓ Watchdog script deployed" -ForegroundColor Green
+    }
+
     Write-Host ""
     Write-Host "✓ All files deployed successfully!" -ForegroundColor Green
     Write-Host ""
@@ -137,6 +147,49 @@ try
     Write-Host $_.Exception.Message -ForegroundColor Red
     Read-Host -Prompt "Press Enter to exit"
     exit 1
+}
+
+# ── Register Watchdog Scheduled Task ────────────────────────────────────────
+Write-Host "Registering watchdog scheduled task..." -ForegroundColor Yellow
+
+if (Test-Path $targetWatchdog)
+{
+    try
+    {
+        $taskName   = "CutDistractionsWatchdog"
+        $psArgs     = "-WindowStyle Hidden -NonInteractive -ExecutionPolicy Bypass -File `"$targetWatchdog`""
+        $action     = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $psArgs
+        $trigger    = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+        $settings   = New-ScheduledTaskSettingsSet `
+                          -ExecutionTimeLimit ([TimeSpan]::Zero) `
+                          -RestartCount 10 `
+                          -RestartInterval (New-TimeSpan -Minutes 1) `
+                          -MultipleInstances IgnoreNew
+        $principal  = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Highest
+
+        Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger `
+            -Settings $settings -Principal $principal -Force | Out-Null
+
+        Write-Host "✓ Watchdog task registered (runs at logon as $env:USERNAME)" -ForegroundColor Green
+        Write-Host ""
+
+        # Start the watchdog now without waiting for next logon
+        Write-Host "Starting watchdog now..." -ForegroundColor Yellow
+        Start-ScheduledTask -TaskName $taskName
+        Write-Host "✓ Watchdog started" -ForegroundColor Green
+        Write-Host ""
+    }
+    catch
+    {
+        Write-Host "WARNING: Could not register watchdog scheduled task!" -ForegroundColor Yellow
+        Write-Host $_.Exception.Message -ForegroundColor Yellow
+        Write-Host ""
+    }
+}
+else
+{
+    Write-Host "WARNING: Watchdog script not found, skipping task registration." -ForegroundColor Yellow
+    Write-Host ""
 }
 
 # Create startup shortcut (optional)
@@ -219,6 +272,9 @@ if (Test-Path $targetIni)
 }
 if (Test-Path $targetIco)
 { Write-Host "  ✓ CutDistractions.ico" -ForegroundColor Gray
+}
+if (Test-Path $targetWatchdog)
+{ Write-Host "  ✓ CutDistractionsWatchdog.ps1 (watchdog)" -ForegroundColor Gray
 }
 Write-Host ""
 Write-Host "Next Steps:" -ForegroundColor White

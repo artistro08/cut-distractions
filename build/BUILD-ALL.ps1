@@ -13,6 +13,7 @@ Write-Host "  1. Create a self-signed code signing certificate" -ForegroundColor
 Write-Host "  2. Compile the AHK script with UIAccess manifest" -ForegroundColor Gray
 Write-Host "  3. Sign the executable" -ForegroundColor Gray
 Write-Host "  4. Deploy to Program Files" -ForegroundColor Gray
+Write-Host "  5. Register the watchdog scheduled task" -ForegroundColor Gray
 Write-Host ""
 
 # Check if running as Administrator
@@ -287,6 +288,7 @@ if ($verificationPassed)
     Write-Host "  ✓ AutoHotkey script compiled with UIAccess manifest" -ForegroundColor Gray
     Write-Host "  ✓ Executable digitally signed" -ForegroundColor Gray
     Write-Host "  ✓ Deployed to trusted location (Program Files)" -ForegroundColor Gray
+    Write-Host "  ✓ Watchdog scheduled task registered (restarts on unexpected exit)" -ForegroundColor Gray
     Write-Host ""
     Write-Host "UIAccess Benefits:" -ForegroundColor White
     Write-Host "  • Works with elevated/admin windows" -ForegroundColor Gray
