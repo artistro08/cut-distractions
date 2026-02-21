@@ -209,29 +209,22 @@ CheckVisibleWindows() {
             }
         }
 
-        ; ── URL scan via address bar (foreground browser window) ──
-        if !shouldGreyscale {
-            try {
-                hwndFG := WinExist("A")
-                if hwndFG && (WinGetMinMax(hwndFG) != -1) {
-                    inScope := true
-                    procName := WinGetProcessName(hwndFG)
-                    if (ProcessList.Length > 0) {
-                        inScope := false
-                        for procExe in ProcessList {
-                            if (procName = procExe) {
-                                inScope := true
-                                break
-                            }
-                        }
-                    }
-                    if inScope {
-                        url := GetBrowserURL(hwndFG)
-                        if url {
-                            for appName in AppList {
-                                if InStr(url, appName) {
-                                    shouldGreyscale := true
-                                    break
+        ; ── URL scan via address bar (all visible browser windows) ──
+        if !shouldGreyscale && (ProcessList.Length > 0) {
+            for procExe in ProcessList {
+                try {
+                    windows := WinGetList("ahk_exe " procExe)
+                    for hwnd in windows {
+                        try {
+                            if (WinGetMinMax(hwnd) = -1)
+                                continue
+                            url := GetBrowserURL(hwnd)
+                            if url {
+                                for appName in AppList {
+                                    if InStr(url, appName) {
+                                        shouldGreyscale := true
+                                        break 3
+                                    }
                                 }
                             }
                         }
