@@ -1,4 +1,5 @@
 #Requires AutoHotkey v2.0
+#Include Lib\UIA.ahk
 #SingleInstance Force
 
 ; ─── Global State ───
@@ -34,7 +35,7 @@ global settingsFile
 userSettingsFile := EnvGet("USERPROFILE") "\.config\cut-distractions\settings.ini"
 settingsFile := FileExist(userSettingsFile) ? userSettingsFile : A_ScriptDir "\settings.ini"
 
-appListRaw := IniRead(settingsFile, "Apps", "List", "YouTube,Twitter,Reddit,TikTok,Instagram")
+appListRaw := IniRead(settingsFile, "Apps", "List", "YouTube,youtube.com,Twitter,twitter.com,x.com,Reddit,reddit.com,TikTok,tiktok.com,Instagram,instagram.com,Facebook,facebook.com,Threads,threads.net")
 for item in StrSplit(appListRaw, ",")
     AppList.Push(Trim(item))
 
@@ -207,6 +208,37 @@ CheckVisibleWindows() {
                 }
             }
         }
+
+        ; ── URL scan via address bar (foreground browser window) ──
+        if !shouldGreyscale {
+            try {
+                hwndFG := WinExist("A")
+                if hwndFG && (WinGetMinMax(hwndFG) != -1) {
+                    inScope := true
+                    procName := WinGetProcessName(hwndFG)
+                    if (ProcessList.Length > 0) {
+                        inScope := false
+                        for procExe in ProcessList {
+                            if (procName = procExe) {
+                                inScope := true
+                                break
+                            }
+                        }
+                    }
+                    if inScope {
+                        url := GetBrowserURL(hwndFG)
+                        if url {
+                            for appName in AppList {
+                                if InStr(url, appName) {
+                                    shouldGreyscale := true
+                                    break
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     if shouldGreyscale && !GreyscaleActive {
@@ -214,6 +246,25 @@ CheckVisibleWindows() {
     } else if !shouldGreyscale && GreyscaleActive {
         SetGreyscale(false)
     }
+}
+
+GetBrowserURL(hwnd) {
+    try {
+        el := UIA.ElementFromHandle(hwnd)
+        ; Chromium-based: Chrome, Brave, Arc
+        try {
+            urlBar := el.FindFirst({AutomationId: "omnibox"})
+            if urlBar
+                return urlBar.Value
+        }
+        ; Firefox-based: Firefox, Zen
+        try {
+            urlBar := el.FindFirst({AutomationId: "urlbar-input"})
+            if urlBar
+                return urlBar.Value
+        }
+    }
+    return ""
 }
 
 SetGreyscale(enable) {
