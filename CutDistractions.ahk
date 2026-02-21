@@ -246,7 +246,7 @@ GetBrowserURL(hwnd) {
         el := UIA.ElementFromHandle(hwnd)
         ; Chromium-based: Chrome, Brave, Arc
         try {
-            urlBar := el.FindFirst({AutomationId: "omnibox"})
+            urlBar := el.FindFirst({Name: "Address and search bar"})
             if urlBar
                 return urlBar.Value
         }
