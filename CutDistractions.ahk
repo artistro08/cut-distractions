@@ -221,7 +221,9 @@ CheckVisibleWindows() {
                             url := GetBrowserURL(hwnd)
                             if url {
                                 for appName in AppList {
-                                    if InStr(url, appName) {
+                                    if (SubStr(url, 1, StrLen(appName)) = appName)
+                                        || InStr(url, "//" . appName)
+                                        || InStr(url, "." . appName) {
                                         shouldGreyscale := true
                                         break 3
                                     }
