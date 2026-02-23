@@ -138,6 +138,12 @@ global WinEventHookNameChange := DllCall("SetWinEventHook"
     , "Ptr", 0, "Ptr", WinEventCallback
     , "UInt", 0, "UInt", 0, "UInt", 0x0000, "Ptr")
 
+; Hook EVENT_OBJECT_VALUECHANGE (0x800E) - accessible value changes (e.g. URL bar while typing)
+global WinEventHookValueChange := DllCall("SetWinEventHook"
+    , "UInt", 0x800E, "UInt", 0x800E
+    , "Ptr", 0, "Ptr", WinEventCallback
+    , "UInt", 0, "UInt", 0, "UInt", 0x0000, "Ptr")
+
 ; Polling timer as safety net (every 2 seconds) for cases events miss
 SetTimer(CheckVisibleWindows, 2000)
 
@@ -155,6 +161,20 @@ Persistent()
 ; ═══════════════════════════════════════════
 
 OnWindowEvent(hWinEventHook, event, hwnd, idObject, idChild, idEventThread, dwmsEventTime) {
+    ; VALUE_CHANGE: allow through, but only for browser processes
+    if (event = 0x800E) {
+        try {
+            procName := WinGetProcessName(hwnd)
+            for procExe in ProcessList {
+                if (procName = procExe) {
+                    SetTimer(CheckVisibleWindows, -100)
+                    return
+                }
+            }
+        }
+        return
+    }
+    ; All other events: only care about window-level objects
     if (idObject != 0)
         return
     ; Debounce: reset timer on each event, only fire after 100ms of quiet
@@ -908,7 +928,7 @@ ResetRegistry(*) {
 }
 
 ExitHandler(exitReason, exitCode) {
-    global WinEventHookFG, WinEventHookShowHide, WinEventHookMinimize, WinEventHookNameChange, WinEventCallback, GreyscaleActive
+    global WinEventHookFG, WinEventHookShowHide, WinEventHookMinimize, WinEventHookNameChange, WinEventHookValueChange, WinEventCallback, GreyscaleActive
 
     ; Restore color on exit
     if GreyscaleActive {
@@ -923,7 +943,7 @@ ExitHandler(exitReason, exitCode) {
     }
 
     ; Unhook window events
-    for hookVar in [WinEventHookFG, WinEventHookShowHide, WinEventHookMinimize, WinEventHookNameChange] {
+    for hookVar in [WinEventHookFG, WinEventHookShowHide, WinEventHookMinimize, WinEventHookNameChange, WinEventHookValueChange] {
         if hookVar
             DllCall("UnhookWinEvent", "Ptr", hookVar)
     }
@@ -931,6 +951,7 @@ ExitHandler(exitReason, exitCode) {
     WinEventHookShowHide := 0
     WinEventHookMinimize := 0
     WinEventHookNameChange := 0
+    WinEventHookValueChange := 0
     if WinEventCallback {
         CallbackFree(WinEventCallback)
         WinEventCallback := 0
